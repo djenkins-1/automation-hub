@@ -108,7 +108,8 @@ type Admin interface {
 // JobInfo is the read-only view of a job for the API and operators.
 // It does not expose lease tokens.
 type JobInfo struct {
-	ID, Kind, State, LastError string
-	Attempts, MaxAttempts      int
-	CreatedAt, FinishedAt      time.Time
+	ID, Kind, State, LastError   string
+	Payload                      []byte
+	Attempts, MaxAttempts        int
+	RunAt, CreatedAt, FinishedAt time.Time // FinishedAt is zero unless done or dead
 }
