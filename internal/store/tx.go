@@ -71,3 +71,10 @@ func InTx(ctx context.Context, db *sql.DB, fn func(ctx context.Context) error) (
 	}
 	return nil
 }
+
+// InTx runs fn in a transaction on the write pool. It is the method form of
+// the package-level InTx, and satisfies the Transactor interface that the
+// engine declares, so the engine never needs to import this package.
+func (d *DB) InTx(ctx context.Context, fn func(ctx context.Context) error) error {
+	return InTx(ctx, d.Write, fn)
+}
