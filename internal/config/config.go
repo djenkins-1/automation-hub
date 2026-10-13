@@ -8,6 +8,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"regexp"
 	"sort"
@@ -23,6 +24,7 @@ import (
 // Config is the validated configuration, with defaults applied.
 type Config struct {
 	Storage StorageConfig
+	Server  ServerConfig
 	Queue   QueueConfig
 	Log     LogConfig
 	Sinks   []sinks.Config
@@ -32,6 +34,12 @@ type Config struct {
 // StorageConfig locates the SQLite database file.
 type StorageConfig struct {
 	Path string `yaml:"path"`
+}
+
+// ServerConfig configures the HTTP API.
+type ServerConfig struct {
+	Addr  string `yaml:"addr"`  // listen address, e.g. ":8080" or "127.0.0.1:8080"
+	Token string `yaml:"token"` // static bearer token clients must present; use ${HUB_TOKEN}
 }
 
 // QueueConfig tunes the job queue and its workers.
@@ -54,6 +62,7 @@ type LogConfig struct {
 // everything except name and type belongs to the sink type.
 type file struct {
 	Storage StorageConfig    `yaml:"storage"`
+	Server  ServerConfig     `yaml:"server"`
 	Queue   QueueConfig      `yaml:"queue"`
 	Log     LogConfig        `yaml:"log"`
 	Sinks   []map[string]any `yaml:"sinks"`
@@ -75,8 +84,8 @@ func Load(path string) (*Config, error) {
 
 // Parse parses, defaults and validates a YAML document.
 //
-// `${NAME}` is expanded from the environment in storage.path and in every
-// string under sinks (for secrets such as tokens and webhook URLs). It is
+// `${NAME}` is expanded from the environment in storage.path, server.token and
+// in every string under sinks (for secrets such as tokens and webhook URLs). It is
 // deliberately not expanded elsewhere, so `$` in rule templates and comments
 // is left alone. An unset variable is an error; write `$${NAME}` for a literal.
 func Parse(data []byte) (*Config, error) {
@@ -86,11 +95,15 @@ func Parse(data []byte) (*Config, error) {
 	}
 
 	var errs []error
-	cfg := &Config{Storage: f.Storage, Queue: f.Queue, Log: f.Log, Rules: f.Rules}
+	cfg := &Config{Storage: f.Storage, Server: f.Server, Queue: f.Queue, Log: f.Log, Rules: f.Rules}
 	cfg.applyDefaults()
 
 	missing := map[string]bool{}
 	cfg.Storage.Path = expandString(cfg.Storage.Path, missing)
+	// Trimmed because secrets mounted from files (Docker/Kubernetes secrets)
+	// often carry a trailing newline that would never match the client's token.
+	// An empty token is not an error here; hubd refuses to start without one.
+	cfg.Server.Token = strings.TrimSpace(expandString(cfg.Server.Token, missing))
 	for i, raw := range f.Sinks {
 		sc, err := sinkConfig(raw, missing)
 		if err != nil {
@@ -118,6 +131,9 @@ func Parse(data []byte) (*Config, error) {
 func (c *Config) applyDefaults() {
 	if c.Storage.Path == "" {
 		c.Storage.Path = "hub.db"
+	}
+	if c.Server.Addr == "" {
+		c.Server.Addr = ":8080"
 	}
 	q := &c.Queue
 	if q.Workers == 0 {
@@ -150,6 +166,9 @@ func (c *Config) validate() []error {
 	var errs []error
 	bad := func(format string, args ...any) { errs = append(errs, fmt.Errorf(format, args...)) }
 
+	if _, port, err := net.SplitHostPort(c.Server.Addr); err != nil || port == "" {
+		bad("server.addr must look like host:port or :port, not %q", c.Server.Addr)
+	}
 	q := c.Queue
 	if q.Workers < 1 {
 		bad("queue.workers must be at least 1")
