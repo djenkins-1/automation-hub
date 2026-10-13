@@ -1,0 +1,60 @@
+# Example configuration for hubd. Copy to hub.yaml and edit.
+#
+# Loading is strict: an unknown key is a startup error, not a silent no-op.
+# ${NAME} is expanded from the environment in storage.path, server.token and
+# every string under sinks. An unset variable is an error; write $${NAME} for
+# a literal "${NAME}".
+
+storage:
+  # SQLite database file. In the Docker image use /data/hub.db (the volume).
+  path: hub.db
+
+server:
+  addr: ":8080"
+  # Clients send this as "Authorization: Bearer <token>". hubd refuses to
+  # start without one. Generate with: openssl rand -hex 32
+  token: ${HUB_TOKEN}
+
+log:
+  level: info    # debug | info | warn | error
+  format: text   # text | json
+
+# Optional; these are the defaults.
+# queue:
+#   workers: 4
+#   lease: 30s
+#   poll_every: 500ms
+#   max_attempts: 6
+#   retry_base: 5s
+#   retry_max: 15m
+
+sinks:
+  # Prints each notification to stdout; handy for checking a rule.
+  - name: console
+    type: stdout
+
+  # Uncomment once the http sink exists (a later step):
+  # - name: webhook
+  #   type: http
+  #   url: ${WEBHOOK_URL}
+  #   headers:
+  #     Authorization: Bearer ${WEBHOOK_TOKEN}
+
+rules:
+  # Every rule whose match succeeds fires; there is no first-match-wins.
+  - name: disk-alerts
+    match:
+      source: monitor          # optional glob
+      type: "disk.*"           # optional glob
+      when: "data.percent > 90"  # optional expression
+    actions:
+      - sink: console
+        title: "Disk {{.Event.Subject}}"
+        body: "{{.Event.Data.percent}}% used"
+
+  # A rule with no match section matches every event.
+  - name: log-everything
+    actions:
+      - sink: console
+        title: "{{.Event.Source}}: {{.Event.Type}}"
+        body: "{{.Event.Subject}}"
