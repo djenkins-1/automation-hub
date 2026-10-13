@@ -33,7 +33,9 @@ sinks:
   - name: console
     type: stdout
 
-  # Uncomment once the http sink exists (a later step):
+  # POSTs a JSON envelope ({id, title, body, attempt, event}) to any URL, with
+  # an Idempotency-Key header. Uncomment, set the variables, and add an action
+  # with `sink: webhook` to a rule. Headers are optional.
   # - name: webhook
   #   type: http
   #   url: ${WEBHOOK_URL}

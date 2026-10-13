@@ -29,6 +29,7 @@ type Factory func(options map[string]any) (sdk.Sink, error)
 // an entry here (or, later, register through the plugin SDK).
 func builtin() map[string]Factory {
 	return map[string]Factory{
+		"http":   newHTTP,
 		"stdout": newStdout,
 	}
 }
