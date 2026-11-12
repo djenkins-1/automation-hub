@@ -56,7 +56,7 @@ func Build(cfgs []Config) (*Registry, error) {
 
 	for i, c := range cfgs {
 		label := fmt.Sprintf("sink #%d", i+1)
-		if c.Name != "" {
+		if strings.TrimSpace(c.Name) != "" { // a blank name is labelled by position
 			label = fmt.Sprintf("sink %q", c.Name)
 		}
 		switch {

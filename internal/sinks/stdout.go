@@ -30,15 +30,23 @@ func newStdout(options map[string]any) (sdk.Sink, error) {
 	return NewStdout(os.Stdout), nil
 }
 
+// oneLine is applied to every text field, so nothing in a notification can
+// start a new line and forge or hide another notification in the output.
 var oneLine = strings.NewReplacer("\r\n", " ⏎ ", "\n", " ⏎ ", "\r", " ⏎ ")
 
 func (s *stdout) Deliver(ctx context.Context, n sdk.Notification) (sdk.Result, error) {
 	line := fmt.Sprintf("notification: %s | %s  [source=%s type=%s event=%s delivery=%s attempt=%d]\n",
 		oneLine.Replace(n.Title), oneLine.Replace(n.Body),
-		n.Event.Source, n.Event.Type, n.Event.ID, n.ID, n.Attempt)
+		oneLine.Replace(n.Event.Source), oneLine.Replace(n.Event.Type),
+		oneLine.Replace(n.Event.ID), oneLine.Replace(n.ID), n.Attempt)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Checked after waiting for the lock. A cancelled delivery is reported as
+	// failed and retried, so it must not have printed anything.
+	if err := ctx.Err(); err != nil {
+		return sdk.Result{}, err
+	}
 	if _, err := io.WriteString(s.w, line); err != nil {
 		return sdk.Result{}, err // a failed write is worth retrying
 	}

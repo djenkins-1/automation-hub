@@ -8,6 +8,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"regexp"
@@ -121,6 +122,7 @@ func Parse(data []byte) (*Config, error) {
 		errs = append(errs, fmt.Errorf("unset environment variable(s) referenced: %s", strings.Join(names, ", ")))
 	}
 
+	errs = append(errs, wholeNumbers(data)...)
 	errs = append(errs, cfg.validate()...)
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
@@ -198,19 +200,55 @@ func (c *Config) validate() []error {
 		bad("log.format must be text or json, not %q", c.Log.Format)
 	}
 
+	// Sink names must be unique; each duplicated name is reported once.
+	known := map[string]bool{}
+	reported := map[string]bool{}
+	for _, s := range c.Sinks {
+		if known[s.Name] && !reported[s.Name] {
+			bad("sink %q is defined more than once", s.Name)
+			reported[s.Name] = true
+		}
+		known[s.Name] = true
+	}
+
 	// Rules: structure first, then that every sink they name exists.
 	set, err := rules.NewSet(c.Rules)
 	if err != nil {
 		errs = append(errs, err)
 		return errs
 	}
-	known := map[string]bool{}
-	for _, s := range c.Sinks {
-		known[s.Name] = true
-	}
 	for _, name := range set.SinkNames() {
 		if !known[name] {
 			bad("rules refer to sink %q, which is not defined under sinks", name)
+		}
+	}
+	return errs
+}
+
+// wholeNumbers reports count settings written with a fractional part. The
+// YAML decoder silently truncates 2.5 to 2 for an int field (and 0.5 to 0,
+// which then means "use the default"), which would hide a typo. A whole value
+// written as 3.0 is accepted.
+func wholeNumbers(data []byte) []error {
+	var loose struct {
+		Queue map[string]any `yaml:"queue"`
+	}
+	if err := yaml.Unmarshal(data, &loose); err != nil {
+		return nil // the strict decode has already reported the problem
+	}
+	var errs []error
+	for _, key := range []string{"workers", "max_attempts"} {
+		var f float64
+		switch v := loose.Queue[key].(type) {
+		case float64:
+			f = v
+		case float32:
+			f = float64(v)
+		default:
+			continue
+		}
+		if f != math.Trunc(f) {
+			errs = append(errs, fmt.Errorf("queue.%s must be a whole number, not %v", key, f))
 		}
 	}
 	return errs
@@ -233,6 +271,9 @@ func sinkConfig(raw map[string]any, missing map[string]bool) (sinks.Config, erro
 	if err != nil {
 		return sinks.Config{}, err
 	}
+	// Rules trim the sink names they refer to, so a sink declared as
+	// " console " must be reachable as "console".
+	name = strings.TrimSpace(name)
 	typ, err := str("type")
 	if err != nil {
 		return sinks.Config{}, err

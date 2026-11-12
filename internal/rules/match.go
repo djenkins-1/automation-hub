@@ -29,13 +29,14 @@ func compileWhen(src string) (*vm.Program, error) {
 }
 
 // compileGlob turns "disk.*" into an anchored regexp. An empty glob returns
-// nil, meaning "match anything".
+// nil, meaning "match anything". The s flag lets * and ? match newlines too:
+// they mean "any characters", whatever they are.
 func compileGlob(glob string) (*regexp.Regexp, error) {
 	if glob == "" {
 		return nil, nil
 	}
 	var b strings.Builder
-	b.WriteString("^")
+	b.WriteString("(?s)^")
 	for _, r := range glob {
 		switch r {
 		case '*':

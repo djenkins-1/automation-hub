@@ -166,12 +166,20 @@ func (s *Deliveries) RecordAttempt(ctx context.Context, a engine.Attempt) error 
 	return store.InTx(ctx, s.db.Write, func(ctx context.Context) error {
 		exec := store.Executor(ctx, s.db.Write)
 
+		// Delivered is sticky. Delivery is at-least-once, so two workers can
+		// overlap on one delivery; if the slower one fails after the other
+		// succeeded, its attempt is logged and counted but must not undo the
+		// success. Every CASE below sees the row's values from before the update.
 		res, err := exec.ExecContext(ctx, `
 			UPDATE deliveries
-			SET status = ?, attempts = attempts + 1, last_error = ?, updated_at = ?,
-			    delivered_at = CASE WHEN ? = 'delivered' THEN ? ELSE delivered_at END
+			SET attempts     = attempts + 1,
+			    updated_at   = ?,
+			    status       = CASE WHEN status = 'delivered' THEN status ELSE ? END,
+			    last_error   = CASE WHEN status = 'delivered' THEN last_error ELSE ? END,
+			    delivered_at = CASE WHEN status = 'delivered' THEN delivered_at
+			                        WHEN ? = 'delivered' THEN ? ELSE delivered_at END
 			WHERE id = ?`,
-			string(status), errText, finished, string(status), finished, a.DeliveryID)
+			finished, string(status), errText, string(status), finished, a.DeliveryID)
 		if err != nil {
 			return fmt.Errorf("sqlite: update delivery: %w", err)
 		}

@@ -42,7 +42,8 @@ type Rule struct {
 // anything, so an empty Match matches every event.
 type Match struct {
 	// Source and Type are globs: * matches any run of characters (including
-	// none), ? matches exactly one, everything else is literal.
+	// none), ? matches exactly one (newlines included), everything else is
+	// literal.
 	Source string `yaml:"source"`
 	Type   string `yaml:"type"`
 	// When is an expression evaluated against the event, for example
