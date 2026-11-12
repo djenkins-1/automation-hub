@@ -323,7 +323,12 @@ func (w *Worker) finish(base, runCtx context.Context, j Job, herr error, log *sl
 		if runCtx.Err() != nil && errors.Is(herr, context.Canceled) {
 			delay = 0 // interrupted by shutdown: hand the job straight back
 		}
-		log.Warn("job failed", "err", herr, "retry_in", delay, "final_attempt", j.Attempt >= j.MaxAttempts)
+		if j.Attempt >= j.MaxAttempts {
+			// Nack dead-letters a job that has used its last attempt.
+			log.Warn("job failed; out of attempts", "err", herr, "max_attempts", j.MaxAttempts)
+		} else {
+			log.Warn("job failed; will retry", "err", herr, "retry_in", delay)
+		}
 		qerr = w.cfg.Queue.Nack(ctx, j, w.cfg.Clock.Now().Add(delay), herr)
 	}
 

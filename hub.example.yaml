@@ -48,7 +48,10 @@ rules:
     match:
       source: monitor          # optional glob
       type: "disk.*"           # optional glob
-      when: "data.percent > 90"  # optional expression
+      # Optional expression. `?? 0` makes an event without data.percent a
+      # quiet non-match; a bare `data.percent > 90` logs a rule problem for
+      # every such event. The parentheses are required.
+      when: "(data.percent ?? 0) > 90"
     actions:
       - sink: console
         title: "Disk {{.Event.Subject}}"
