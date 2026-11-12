@@ -443,7 +443,8 @@ func TestOneSinksFailureNeverAffectsAnotherSinksDelivery(t *testing.T) {
 }
 
 func TestTheShippedExampleConfigRunsEndToEnd(t *testing.T) {
-	cfg, err := config.Load("../../configs/hub.example.yaml")
+	t.Setenv("HUB_TOKEN", "example-test-token") // the example reads its token from the environment
+	cfg, err := config.Load("../../hub.example.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

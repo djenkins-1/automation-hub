@@ -541,7 +541,8 @@ func rootCause(err error) error {
 // The example file
 
 func TestExampleConfigIsValidAndComplete(t *testing.T) {
-	cfg, err := config.Load("../../configs/hub.example.yaml")
+	t.Setenv("HUB_TOKEN", "example-test-token") // the example reads its token from the environment
+	cfg, err := config.Load("../../hub.example.yaml")
 	if err != nil {
 		t.Fatalf("the shipped example must load: %v", err)
 	}
@@ -558,7 +559,7 @@ func TestExampleConfigIsValidAndComplete(t *testing.T) {
 
 // Adding a setting to the code without documenting it in the example fails here.
 func TestExampleDocumentsEverySetting(t *testing.T) {
-	raw, err := os.ReadFile("../../configs/hub.example.yaml")
+	raw, err := os.ReadFile("../../hub.example.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -572,7 +573,7 @@ func TestExampleDocumentsEverySetting(t *testing.T) {
 				continue
 			}
 			if !strings.Contains(text, key+":") {
-				t.Errorf("setting %q (%s) is not documented in configs/hub.example.yaml", key, typ.Name())
+				t.Errorf("setting %q (%s) is not documented in hub.example.yaml", key, typ.Name())
 			}
 		}
 	}
