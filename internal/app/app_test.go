@@ -20,6 +20,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -458,13 +459,33 @@ func TestTheShippedExampleConfigRunsEndToEnd(t *testing.T) {
 	run(t, a)
 	o := observe(t, path)
 
-	disk := accept(t, a, sdk.Event{Source: "monitor", Type: "disk.full", Subject: "/var", Data: map[string]any{"percent": 97.0}})
-	bare := accept(t, a, sdk.Event{Source: "cron", Type: "backup.failed"})
-	if d := o.waitStatus(disk.EventID, engine.DeliveryDelivered); d.Title != "Disk /var is 97% full" || d.Body != "Reported by monitor (disk.full)" {
-		t.Fatalf("disk delivery: %q / %q", d.Title, d.Body)
-	}
-	if d := o.waitStatus(bare.EventID, engine.DeliveryDelivered); d.Title != "Backup failed: unknown job" || d.Body != "no error message" {
-		t.Fatalf("backup delivery: %q / %q", d.Title, d.Body)
+	// Both example rules fire for a full disk; only the catch-all fires for an
+	// event the disk rule does not cover, or one without data.percent.
+	type msg struct{ title, body string }
+	for _, tc := range []struct {
+		name string
+		ev   sdk.Event
+		want map[string]msg // by rule
+	}{
+		{"full disk", sdk.Event{Source: "monitor", Type: "disk.full", Subject: "/var", Data: map[string]any{"percent": 97.0}},
+			map[string]msg{"disk-alerts": {"Disk /var", "97% used"}, "log-everything": {"monitor: disk.full", "/var"}}},
+		{"other event", sdk.Event{Source: "cron", Type: "backup.failed"},
+			map[string]msg{"log-everything": {"cron: backup.failed", ""}}},
+		{"disk event without percent", sdk.Event{Source: "monitor", Type: "disk.full", Subject: "/home"},
+			map[string]msg{"log-everything": {"monitor: disk.full", "/home"}}},
+	} {
+		id := accept(t, a, tc.ev).EventID
+		o.waitIdle()
+		got := map[string]msg{}
+		for _, d := range o.deliveriesOf(id) {
+			if d.Status != engine.DeliveryDelivered {
+				t.Errorf("%s: delivery for rule %s is %s, want delivered", tc.name, d.Rule, d.Status)
+			}
+			got[d.Rule] = msg{d.Title, d.Body}
+		}
+		if !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: deliveries = %+v, want %+v", tc.name, got, tc.want)
+		}
 	}
 }
 
