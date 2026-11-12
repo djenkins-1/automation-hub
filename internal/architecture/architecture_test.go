@@ -12,6 +12,7 @@ package architecture_test
 //	store/sqlite     implements the engine's ports: engine + store + sdk only
 //	internal/sinks   destinations: sdk only
 //	internal/config  rules + sinks only
+//	internal/api     the HTTP interface: engine + sdk only; no SQL
 //	internal/app     the composition root: may import anything, and nothing imports it
 
 import (
@@ -74,6 +75,7 @@ var rules = []rule{
 	{pkg: "internal/sinks", allowedInternal: []string{"pkg/sdk"}, forbiddenStd: []string{"database/sql"}},
 	{pkg: "internal/config", allowedInternal: []string{"internal/rules", "internal/sinks"}, allowedExternal: []string{"github.com/goccy/go-yaml"},
 		forbiddenStd: []string{"database/sql", "net/http"}},
+	{pkg: "internal/api", allowedInternal: []string{"internal/engine", "pkg/sdk"}, forbiddenStd: []string{"database/sql"}},
 }
 
 func TestEachPackageImportsOnlyWhatItsLayerAllows(t *testing.T) {
