@@ -124,7 +124,8 @@ func New(ctx context.Context, cfg *config.Config, opts ...Option) (*App, error) 
 func (a *App) Ingest() *engine.Ingest { return a.ingest }
 
 // Run processes jobs until ctx is cancelled, then drains in-flight work and
-// returns. Components added later (the HTTP server, the scheduler) start here.
+// returns. The HTTP server is not started here; cmd/hubd runs it beside Run
+// so that it can be stopped before the worker drains.
 func (a *App) Run(ctx context.Context) error {
 	a.log.Info("hub started", "database", a.cfg.Storage.Path, "rules", len(a.cfg.Rules), "sinks", a.sinks.Names())
 	return a.worker.Run(ctx)
