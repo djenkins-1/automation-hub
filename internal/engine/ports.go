@@ -142,7 +142,9 @@ type DeliveryStore interface {
 	ListDeliveries(ctx context.Context, q DeliveryQuery) ([]Delivery, error)
 	// RecordAttempt appends a to the delivery's attempt log and, in the same
 	// transaction, updates the delivery: attempts+1, status derived from the
-	// outcome, last_error, delivered_at. Returns ErrNotFound for an unknown delivery.
+	// outcome, last_error, delivered_at. Delivered is sticky: once a delivery
+	// is delivered, later attempts are logged and counted but leave its status,
+	// last_error and delivered_at alone. Returns ErrNotFound for an unknown delivery.
 	RecordAttempt(ctx context.Context, a Attempt) error
 	ListAttempts(ctx context.Context, deliveryID string) ([]Attempt, error)
 }
